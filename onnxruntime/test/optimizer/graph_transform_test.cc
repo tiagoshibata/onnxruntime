@@ -14,7 +14,7 @@
 #include "core/optimizer/conv_activation_fusion.h"
 #include "core/optimizer/dropout_elimination.h"
 #include "core/optimizer/gemm_activation_fusion.h"
-#include "core/optimizer/gelu_add_fusion.h"
+#include "core/optimizer/add_gelu_fusion.h"
 #include "core/optimizer/gelu_fusion.h"
 #include "core/optimizer/graph_transformer.h"
 #include "core/optimizer/graph_transformer_mgr.h"
@@ -821,14 +821,15 @@ TEST(GraphTransformationTests, GeluFusionTest) {
   ASSERT_TRUE(op_to_count["Gelu"] == 1);
 }
 
-TEST(GraphTransformationTests, GeluFusionTest) {
+TEST(GraphTransformationTests, GeluAddFusionTest) {
   string model_uri = MODEL_FOLDER + "fusion/add_gelu_fusion.onnx";
   std::shared_ptr<Model> p_model;
   ASSERT_TRUE(Model::Load(model_uri, p_model).IsOK());
   Graph& graph = p_model->MainGraph();
 
   onnxruntime::GraphTransformerManager graph_transformation_mgr{5};
-  graph_transformation_mgr.Register(onnxruntime::make_unique<GeluAddFusion>(), TransformerLevel::Level2);
+  graph_transformation_mgr.Register(onnxruntime::make_unique<GeluFusion>(), TransformerLevel::Level2);
+  graph_transformation_mgr.Register(onnxruntime::make_unique<AddGeluFusion>(), TransformerLevel::Level2);
   auto ret = graph_transformation_mgr.ApplyTransformers(graph, TransformerLevel::Level2);
   ASSERT_TRUE(ret.IsOK());
 
