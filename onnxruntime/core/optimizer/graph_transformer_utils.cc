@@ -117,8 +117,14 @@ std::vector<std::unique_ptr<GraphTransformer>> GenerateTransformers(TransformerL
 #ifndef DISABLE_CONTRIB_OPS
       transformers.emplace_back(onnxruntime::make_unique<GemmActivationFusion>(l2_execution_providers));
       transformers.emplace_back(onnxruntime::make_unique<ConvActivationFusion>(l2_execution_providers));
-      transformers.emplace_back(onnxruntime::make_unique<GeluFusion>(l2_execution_providers));
-      transformers.emplace_back(onnxruntime::make_unique<AddGeluFusion>(l2_execution_providers));
+
+      std::unordered_set<std::string> l2_execution_providers_cpu_cuda = {
+          onnxruntime::kCpuExecutionProvider,
+          onnxruntime::kCudaExecutionProvider};
+      transformers.emplace_back(onnxruntime::make_unique<GeluFusion>(l2_execution_providers_cpu_cuda));
+
+      std::unordered_set<std::string> l2_cuda = {onnxruntime::kCudaExecutionProvider};
+      transformers.emplace_back(onnxruntime::make_unique<AddGeluFusion>(l2_cuda));
 #endif
     } break;
 
