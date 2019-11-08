@@ -23,7 +23,6 @@ if (onnxruntime_BUILD_CSHARP)
   check_language(CSharp)
   if (CMAKE_CSharp_COMPILER)
     enable_language(CSharp)
-    set(CMAKE_DOTNET_TARGET_FRAMEWORK_VERSION v4.6.1)
     set(CMAKE_CSharp_FLAGS ${CMAKE_CSharp_FLAGS} "/langversion:6")
     message(STATUS "CMAKE_Csharp_Compiler = ${CMAKE_CSharp_COMPILER}")
   else()
@@ -79,16 +78,19 @@ option(onnxruntime_CROSS_COMPILING "Cross compiling onnx runtime" OFF)
 option(onnxruntime_BUILD_SERVER "Build ONNX Runtime Server" OFF)
 option(onnxruntime_USE_FULL_PROTOBUF "Use full protobuf" OFF)
 option(onnxruntime_DISABLE_CONTRIB_OPS "Disable contrib ops" OFF)
-option(onnxruntime_USE_EIGEN_THREADPOOL "Use eigen threadpool. Otherwise OpenMP or a homemade one will be used" OFF)
 option(tensorflow_C_PACKAGE_PATH "Path to tensorflow C package installation dir")
 option(onnxruntime_ENABLE_LANGUAGE_INTEROP_OPS "Enable operator implemented in language other than cpp" OFF)
 option(onnxruntime_DEBUG_NODE_INPUTS_OUTPUTS "Dump node input shapes and output data to standard output when executing the model." OFF)
+option(onnxruntime_USE_DML "Build with DirectML support" OFF)
+option(onnxruntime_USE_ACL "Build with ACL support" OFF)
 
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "Build protobuf tests" FORCE)
 #nsync tests failed on Mac Build
 set(NSYNC_ENABLE_TESTS OFF CACHE BOOL "Build protobuf tests" FORCE)
 set(ONNX_ML 1)
-
+if(NOT onnxruntime_ENABLE_PYTHON)
+  set(onnxruntime_ENABLE_LANGUAGE_INTEROP_OPS OFF)
+endif()
 if(onnxruntime_USE_OPENMP)
   find_package(OpenMP)
   if (OPENMP_FOUND)
@@ -328,6 +330,11 @@ endfunction()
 
 set(onnxruntime_EXTERNAL_DEPENDENCIES onnx_proto re2)
 
+# ACL
+if (onnxruntime_USE_ACL)
+  list(APPEND onnxruntime_EXTERNAL_LIBRARIES arm_compute acl arm_compute_graph arm_compute_core)
+endif()
+
 # TVM
 if (onnxruntime_USE_TVM)
   if (onnxruntime_USE_CUDA)
@@ -445,6 +452,7 @@ else()
   check_cxx_compiler_flag(-Wmissing-braces HAS_MISSING_BRACES)
   check_cxx_compiler_flag(-Wignored-attributes HAS_IGNORED_ATTRIBUTES)
   check_cxx_compiler_flag(-Wdeprecated-copy HAS_DEPRECATED_COPY)
+  check_cxx_compiler_flag(-Wclass-memaccess HAS_CLASS_MEMACCESS)
 
   if(HAS_TAUTOLOGICAL_POINTER_COMPARE)
     #we may have extra null pointer checkings in debug build, it's not an issue
@@ -455,6 +463,11 @@ else()
     #we may have extra null pointer checkings in debug build, it's not an issue
     string(APPEND CMAKE_CXX_FLAGS_DEBUG " -Wno-nonnull-compare")
     string(APPEND CMAKE_C_FLAGS_DEBUG " -Wno-nonnull-compare")
+  endif()
+  if(HAS_DEPRECATED_COPY)
+    #too many such errors in eigen and gemmlowp
+    string(APPEND CMAKE_CXX_FLAGS_DEBUG " -Wno-deprecated-copy")
+    string(APPEND CMAKE_C_FLAGS_DEBUG " -Wno-deprecated-copy")
   endif()
   if(HAS_PARENTHESES)
     string(APPEND CMAKE_CXX_FLAGS " -Wno-parentheses")
@@ -521,18 +534,7 @@ endif()
 
 if(onnxruntime_USE_OPENVINO)
 
-    add_definitions(-DUSE_OPENVINO=1)
-
-	if (onnxruntime_USE_OPENVINO_SOURCE)
-	  include(openvino)
-	  list(APPEND onnxruntime_EXTERNAL_DEPENDENCIES project_openvino)
-	  link_directories(${OPENVINO_LIB_DIR})
-	  #TODO: set plugin path var
-	endif()
-
-	if (onnxruntime_USE_OPENVINO_BINARY)
-	    #TODO: set plugin path var
-	endif()
+  add_definitions(-DUSE_OPENVINO=1)
 
 	if(onnxruntime_USE_OPENVINO_MYRIAD)
 		add_definitions(-DOPENVINO_CONFIG_MYRIAD=1)
@@ -583,7 +585,7 @@ if (onnxruntime_USE_CUDA)
   endif()
   string(APPEND CMAKE_CUDA_FLAGS "-cudart shared")
   enable_language(CUDA)
-  set(CMAKE_CUDA_STANDARD 14)
+  set(CMAKE_CUDA_STANDARD 11)
   file(TO_CMAKE_PATH ${onnxruntime_CUDNN_HOME} onnxruntime_CUDNN_HOME)
   set(ONNXRUNTIME_CUDA_LIBRARIES ${CUDA_LIBRARIES})
   list(APPEND ONNXRUNTIME_CUDA_LIBRARIES cublas cudnn)
@@ -606,7 +608,7 @@ if (onnxruntime_USE_CUDA)
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_50,code=sm_50") # M series
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_60,code=sm_60") # P series
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode=arch=compute_70,code=sm_70") # V series
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --default-stream per-thread")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --default-stream legacy")
   if (NOT WIN32)
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --compiler-options -fPIC")
   endif()
@@ -645,6 +647,15 @@ endif()
 
 if (onnxruntime_ENABLE_MICROSOFT_INTERNAL)
   add_definitions(-DMICROSOFT_INTERNAL)
+endif()
+
+if (onnxruntime_USE_DML)
+  if(NOT WIN32)
+    message(FATAL_ERROR "The DirectML execution provider is only supported when building for Windows.")
+  endif()
+
+  add_definitions(-DUSE_DML=1)
+  include(dml)
 endif()
 
 #names in this var must match the directory names under onnxruntime/core/providers
