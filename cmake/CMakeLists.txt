@@ -19,6 +19,11 @@ project(onnxruntime C CXX)
 # Needed for Java
 set (CMAKE_C_STANDARD 99)
 
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:SHELL:-flto -fno-omit-frame-pointer -fsanitize=thread -stdlib=libc++>")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:SHELL:-flto -fno-omit-frame-pointer -fsanitize=thread>")
+add_link_options("$<$<COMPILE_LANGUAGE:C>:SHELL:-flto -fno-omit-frame-pointer -fsanitize=thread>")
+add_link_options("$<$<COMPILE_LANGUAGE:CXX>:SHELL:-flto -fno-omit-frame-pointer -fsanitize=thread -stdlib=libc++>")
+
 include(CheckCXXCompilerFlag)
 include(CheckLanguage)
 
